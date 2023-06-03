@@ -1,4 +1,4 @@
-# File Concatenation to Clipboard
+# Tagged file Concatenation to Clipboard
 
 This is a Python script that allows users to concatenate multiple files into a single copy-paste buffer. This buffer can then be pasted into any text input area, including the chat interface of ChatGPT. This tool is especially useful when you want to provide code context to ChatGPT. 
 
@@ -15,12 +15,12 @@ This is a Python script that allows users to concatenate multiple files into a s
 To use the script, run the following command in the terminal:
 
 ```bash
-python script.py [file1] [file2] ...
+gpt-copy-files [file1] [file2] ...
 ```
 
 You can also use wildcards to select multiple files:
 ```bash
-python script.py src/*
+gpt-copy-files script.py src/*
 ```
 
 ## Key Bindings
