@@ -2,6 +2,8 @@
 
 This is a Python script that allows users to concatenate multiple files into a single copy-paste buffer. This buffer can then be pasted into any text input area, including the chat interface of ChatGPT. This tool is especially useful when you want to provide code context to ChatGPT. 
 
+<img width="341" alt="Screenshot" src="https://github.com/filipe-m-almeida/copy-files/assets/28849172/c10f9113-c697-40ac-8cb4-c376b91596db">
+
 ## Requirements
 
 - Python 3
