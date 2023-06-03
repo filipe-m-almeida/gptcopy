@@ -27,85 +27,103 @@ Author: Filipe Almeida <filipe.almeida@gmail.com>
 """
 
 from pathlib import Path
+import argparse
 import pyperclip
-import sys
 import urwid
+import sys
 
 def comment_style(file):
     return '#' if Path(file).suffix in ['.py', '.rb', '.r', '.sh', '.pl', '.php'] else '//'
 
-def exit_on_q(key):
-    if key in ('q', 'Q', 'esc'):
-        raise urwid.ExitMainLoop()
-    elif key in ('?', 'h'):
-        show_help_overlay()
+def concatenate_files(files):
+    file_contents = [f"{comment_style(f)} File {f}\n{Path(f).read_text()}" for f in files]
+    return "\n".join(file_contents)
 
-class HelpFrame(urwid.Frame):
-    def keypress(self, size, key):
-        loop.widget = listbox
-        return super().keypress(size, key)
+concatenated_content = ""
 
-def show_help_overlay():
-    help_text = urwid.Text("    Key Bindings:")
-    key_bindings_text = urwid.Text("""
-      ? or h: Show this help screen
-      Enter: Perform action on selected files
-      Space: Toggle selection of current file
-      c: Check all files
-      s: Uncheck all files
-      t: Toggle selection of files""")
-    help_padding = urwid.Padding(urwid.Pile([help_text, key_bindings_text]), align='center')
-    help_frame = HelpFrame(urwid.Filler(help_padding), focus_part='body')
-    loop.widget = help_frame
+def main():
+    parser = argparse.ArgumentParser(description='Script for concatenating files into a copy-paste buffer for iterative development.')
+    parser.add_argument('files', nargs='+', help='Files to concatenate')
+    parser.add_argument('-n', '--disable-ui', action='store_true', help='Disable UI and concatenate all files')
+    parser.add_argument('-o', '--stdout', action='store_true', help='Use stdout instead of the copy/paste buffer')
+    args = parser.parse_args()
 
 
-def get_selected():
-    selected = []
-    for checkbox in checkboxes:
-        if checkbox.get_state():
-            selected.append(checkbox.get_label())
-    # Read, comment and copy selected files to clipboard
-    file_contents = [f"{comment_style(f)} File {f}\n{Path(f).read_text()}" for f in selected]
-    pyperclip.copy("\n".join(file_contents))
-    raise urwid.ExitMainLoop()
 
-class CustomCheckBox(urwid.CheckBox):
-    _metaclass_ = urwid.MetaSignals
-    signals = ['close']
-
-    def keypress(self, size, key):
-        if key == 'enter':
-            get_selected()
-        elif key == 'c':
-            for checkbox in checkboxes:
-                checkbox.set_state(False)
-        elif key == 's':
-            for checkbox in checkboxes:
-                checkbox.set_state(True)
-        elif key == 't':
-            for checkbox in checkboxes:
-                checkbox.set_state(not checkbox.get_state())
-        elif key in ('?', 'h'):
-            show_help_overlay()
+    if args.disable_ui:
+        concatenated_content = concatenate_files(args.files)
+        if args.stdout:
+            print(concatenated_content)
         else:
-            return super().keypress(size, key)
-    
-# Get all files in current directory
-files = sys.argv[1:]
-files.sort()
+            pyperclip.copy(concatenated_content)
+    else:
+        def exit_on_q(key):
+            if key in ('q', 'Q', 'esc'):
+                raise urwid.ExitMainLoop()
+            elif key in ('?', 'h'):
+                show_help_overlay()
 
-checkboxes = [CustomCheckBox(f, True) for f in files]
+        def show_help_overlay():
+            help_text = urwid.Text("    Key Bindings:")
+            key_bindings_text = urwid.Text("""
+              ? or h: Show this help screen
+              Enter: Perform action on selected files
+              Space: Toggle selection of current file
+              c: Check all files
+              s: Uncheck all files
+              t: Toggle selection of files""")
+            help_padding = urwid.Padding(urwid.Pile([help_text, key_bindings_text]), align='center')
+            help_frame = urwid.Frame(urwid.Filler(help_padding), focus_part='body')
+            loop.widget = help_frame
 
-def back_to_main(_):
-    loop.widget = listbox
+        def get_selected():
+            nonlocal concatenated_content
+            selected = []
+            for checkbox in checkboxes:
+                if checkbox.get_state():
+                    selected.append(checkbox.get_label())
+            concatenated_content = concatenate_files(selected)
+            raise urwid.ExitMainLoop()
 
-for checkbox in checkboxes:
-    urwid.connect_signal(checkbox, 'close', back_to_main)
+        class CustomCheckBox(urwid.CheckBox):
+            _metaclass_ = urwid.MetaSignals
+            signals = ['close']
 
-listwalker = urwid.SimpleFocusListWalker(checkboxes)
+            def keypress(self, size, key):
+                if key == 'enter':
+                    get_selected()
+                elif key == 'c':
+                    for checkbox in checkboxes:
+                        checkbox.set_state(False)
+                elif key == 's':
+                    for checkbox in checkboxes:
+                        checkbox.set_state(True)
+                elif key == 't':
+                    for checkbox in checkboxes:
+                        checkbox.set_state(not checkbox.get_state())
+                elif key in ('?', 'h'):
+                    show_help_overlay()
+                else:
+                    return super().keypress(size, key)
 
-listbox = urwid.ListBox(listwalker)
+        checkboxes = [CustomCheckBox(f, True) for f in args.files]
 
-loop = urwid.MainLoop(listbox, unhandled_input=exit_on_q)
+        def back_to_main(_):
+            loop.widget = listbox
 
-loop.run()
+        for checkbox in checkboxes:
+            urwid.connect_signal(checkbox, 'close', back_to_main)
+
+        listwalker = urwid.SimpleFocusListWalker(checkboxes)
+        listbox = urwid.ListBox(listwalker)
+
+        loop = urwid.MainLoop(listbox, unhandled_input=exit_on_q)
+        loop.run()
+
+        if args.stdout:
+            print(concatenated_content)
+        else:
+            pyperclip.copy(concatenated_content)
+
+if __name__ == '__main__':
+    main()
