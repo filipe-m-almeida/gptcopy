@@ -15,12 +15,12 @@ This is a Python script that allows users to concatenate multiple files into a s
 To use the script, run the following command in the terminal:
 
 ```bash
-gpt-copy-files [file1] [file2] ...
+gptcopy [file1] [file2] ...
 ```
 
 You can also use wildcards to select multiple files:
 ```bash
-gpt-copy-files script.py src/*
+gptcopy script.py src/*
 ```
 
 ## Key Bindings
