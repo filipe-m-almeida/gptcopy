@@ -47,7 +47,6 @@ def list_encoding_names():
     for name in enc_names:
         print(name)
 
-concatenated_content = ""
 
 def main():
     parser = argparse.ArgumentParser(description='Script for concatenating files into a copy-paste buffer for iterative development.')
@@ -59,17 +58,18 @@ def main():
 
     args = parser.parse_args()
     encoding = tiktoken.get_encoding(args.encoding)
+    concatenated_content = [""]
 
     if args.list:
         list_encoding_names()
         sys.exit(0)
 
     if args.disable_ui:
-        concatenated_content = concatenate_files(args.files)
+        concatenated_content = [concatenate_files(args.files)]
         if args.stdout:
-            print(concatenated_content)
+            print(concatenated_content[0])
         else:
-            pyperclip.copy(concatenated_content)
+            pyperclip.copy(concatenated_content[0])
     else:
         def exit_on_q(key):
             if key in ('q', 'Q', 'esc'):
@@ -102,12 +102,11 @@ def main():
             token_count.set_text(f"Tokens: {tokens} Words: {words}")
 
         def get_selected():
-            nonlocal concatenated_content
             selected = []
             for checkbox in checkboxes:
                 if checkbox.get_state():
                     selected.append(checkbox.get_label())
-            concatenated_content = concatenate_files(selected)
+            concatenated_content[0] = concatenate_files(selected)
 
             raise urwid.ExitMainLoop()
 
@@ -153,9 +152,9 @@ def main():
         loop.run()
 
         if args.stdout:
-            print(concatenated_content)
+            print(concatenated_content[0])
         else:
-            pyperclip.copy(concatenated_content)
+            pyperclip.copy(concatenated_content[0])
 
 if __name__ == '__main__':
     main()
