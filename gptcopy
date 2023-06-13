@@ -64,13 +64,9 @@ def main():
         list_encoding_names()
         sys.exit(0)
 
-    if args.disable_ui:
-        concatenated_content = [concatenate_files(args.files)]
-        if args.stdout:
-            print(concatenated_content[0])
-        else:
-            pyperclip.copy(concatenated_content[0])
-    else:
+    concatenated_content = [concatenate_files(args.files)]
+
+    if not args.disable_ui:
         def exit_on_q(key):
             if key in ('q', 'Q', 'esc'):
                 raise urwid.ExitMainLoop()
@@ -151,10 +147,10 @@ def main():
         loop = urwid.MainLoop(frame, unhandled_input=exit_on_q)
         loop.run()
 
-        if args.stdout:
-            print(concatenated_content[0])
-        else:
-            pyperclip.copy(concatenated_content[0])
+    if args.stdout:
+        print(concatenated_content[0])
+    else:
+        pyperclip.copy(concatenated_content[0])
 
 if __name__ == '__main__':
     main()
