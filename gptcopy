@@ -29,8 +29,9 @@ Author: Filipe Almeida <filipe.almeida@gmail.com>
 from pathlib import Path
 import argparse
 import pyperclip
-import urwid
 import sys
+import tiktoken
+import urwid
 
 def comment_style(file):
     return '#' if Path(file).suffix in ['.py', '.rb', '.r', '.sh', '.pl', '.php'] else '//'
@@ -39,6 +40,13 @@ def concatenate_files(files):
     file_contents = [f"{comment_style(f)} File {f}\n{Path(f).read_text()}" for f in files]
     return "\n".join(file_contents)
 
+# List available tiktoken encodings
+def list_encoding_names():
+    enc_names = tiktoken.list_encoding_names()
+    print("Available encodings:")
+    for name in enc_names:
+        print(name)
+
 concatenated_content = ""
 
 def main():
@@ -46,9 +54,15 @@ def main():
     parser.add_argument('files', nargs='+', help='Files to concatenate')
     parser.add_argument('-n', '--disable-ui', action='store_true', help='Disable UI and concatenate all files')
     parser.add_argument('-o', '--stdout', action='store_true', help='Use stdout instead of the copy/paste buffer')
+    parser.add_argument('-l', '--list', action='store_true', help='List available encodings')
+    parser.add_argument('-e', '--encoding', default='cl100k_base', help='Set the encoding')
+
     args = parser.parse_args()
+    encoding = tiktoken.get_encoding(args.encoding)
 
-
+    if args.list:
+        list_encoding_names()
+        sys.exit(0)
 
     if args.disable_ui:
         concatenated_content = concatenate_files(args.files)
@@ -76,6 +90,17 @@ def main():
             help_frame = urwid.Frame(urwid.Filler(help_padding), focus_part='body')
             loop.widget = help_frame
 
+        def update_token_count(checkbox=None, new_state=None):
+            selected = []
+            for checkbox in checkboxes:
+                if checkbox.get_state():
+                    selected.append(checkbox.get_label())
+            content = concatenate_files(selected)
+
+            words = len(content.split())
+            tokens = len(encoding.encode(content))
+            token_count.set_text(f"Tokens: {tokens} Words: {words}")
+
         def get_selected():
             nonlocal concatenated_content
             selected = []
@@ -83,6 +108,7 @@ def main():
                 if checkbox.get_state():
                     selected.append(checkbox.get_label())
             concatenated_content = concatenate_files(selected)
+
             raise urwid.ExitMainLoop()
 
         class CustomCheckBox(urwid.CheckBox):
@@ -109,15 +135,21 @@ def main():
         checkboxes = [CustomCheckBox(f, True) for f in args.files]
 
         def back_to_main(_):
-            loop.widget = listbox
+            loop.widget = frame
 
         for checkbox in checkboxes:
             urwid.connect_signal(checkbox, 'close', back_to_main)
+            urwid.connect_signal(checkbox, 'postchange', update_token_count)
+
+        token_count = urwid.Text("")
 
         listwalker = urwid.SimpleFocusListWalker(checkboxes)
         listbox = urwid.ListBox(listwalker)
+        frame = urwid.Frame(listbox, footer=token_count)
 
-        loop = urwid.MainLoop(listbox, unhandled_input=exit_on_q)
+        update_token_count()
+
+        loop = urwid.MainLoop(frame, unhandled_input=exit_on_q)
         loop.run()
 
         if args.stdout:
