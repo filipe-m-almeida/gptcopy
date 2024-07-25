@@ -32,13 +32,10 @@ import pyperclip
 import sys
 import tiktoken
 import urwid
+import concurrent.futures
 
 def comment_style(file):
     return '#' if Path(file).suffix in ['.py', '.rb', '.r', '.sh', '.pl', '.php'] else '//'
-
-def concatenate_files(files):
-    file_contents = [f"{comment_style(f)} File {f}\n{Path(f).read_text()}" for f in files]
-    return "\n".join(file_contents)
 
 # List available tiktoken encodings
 def list_encoding_names():
@@ -46,6 +43,25 @@ def list_encoding_names():
     print("Available encodings:")
     for name in enc_names:
         print(name)
+
+
+def process_file(f, encoding_name):
+    import tiktoken
+
+    encoding = tiktoken.get_encoding(encoding_name)
+    cs = comment_style(f)
+
+    try:
+        content = Path(f).read_text()
+    except Exception as e:
+        print(f"Error reading file {f}: {e}", file=sys.stderr)
+        content = ""
+
+    content_with_comment = f"{cs} File {f}\n{content}"
+    token_count = len(encoding.encode(content_with_comment))
+    word_count = len(content_with_comment.split())
+
+    return {'file_path': f, 'content': content_with_comment, 'token_count': token_count, 'word_count': word_count}
 
 
 def main():
@@ -57,16 +73,26 @@ def main():
     parser.add_argument('files', nargs=argparse.REMAINDER, help='Input files')
 
     args = parser.parse_args()
-    encoding = tiktoken.get_encoding(args.encoding)
     concatenated_content = [""]
 
     if args.list:
         list_encoding_names()
         sys.exit(0)
 
-    concatenated_content = [concatenate_files(args.files)]
+    if not args.files:
+        print("No files provided.", file=sys.stderr)
+        sys.exit(1)
 
-    if not args.disable_ui:
+    # Process files in parallel
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        file_data_list = list(executor.map(process_file, args.files, [args.encoding]*len(args.files)))
+
+    # Build file data dict for quick access
+    file_data_dict = {data['file_path']: data for data in file_data_list}
+
+    if args.disable_ui:
+        concatenated_content[0] = '\n'.join(data['content'] for data in file_data_list)
+    else:
         def exit_on_q(key):
             if key in ('q', 'Q', 'esc'):
                 raise urwid.ExitMainLoop()
@@ -81,29 +107,21 @@ def main():
               Space: Toggle selection of current file
               c: Check all files
               s: Uncheck all files
-              t: Toggle selection of files""")
+              t: Toggle selection of files
+              q or esc: Exit the program""")
             help_padding = urwid.Padding(urwid.Pile([help_text, key_bindings_text]), align='center')
             help_frame = urwid.Frame(urwid.Filler(help_padding), focus_part='body')
             loop.widget = help_frame
 
         def update_token_count(checkbox=None, new_state=None):
-            selected = []
-            for checkbox in checkboxes:
-                if checkbox.get_state():
-                    selected.append(checkbox.get_label())
-            content = concatenate_files(selected)
-
-            words = len(content.split())
-            tokens = len(encoding.encode(content))
-            token_count.set_text(f"Tokens: {tokens} Words: {words}")
+            selected_files = [checkbox.get_label() for checkbox in checkboxes if checkbox.get_state()]
+            total_tokens = sum(file_data_dict[f]['token_count'] for f in selected_files)
+            total_words = sum(file_data_dict[f]['word_count'] for f in selected_files)
+            token_count.set_text(f"Tokens: {total_tokens} Words: {total_words}")
 
         def get_selected():
-            selected = []
-            for checkbox in checkboxes:
-                if checkbox.get_state():
-                    selected.append(checkbox.get_label())
-            concatenated_content[0] = concatenate_files(selected)
-
+            selected_files = [checkbox.get_label() for checkbox in checkboxes if checkbox.get_state()]
+            concatenated_content[0] = '\n'.join(file_data_dict[f]['content'] for f in selected_files)
             raise urwid.ExitMainLoop()
 
         class CustomCheckBox(urwid.CheckBox):
@@ -115,13 +133,16 @@ def main():
                     get_selected()
                 elif key == 'c':
                     for checkbox in checkboxes:
-                        checkbox.set_state(False)
+                        checkbox.set_state(True)
+                    update_token_count()
                 elif key == 's':
                     for checkbox in checkboxes:
-                        checkbox.set_state(True)
+                        checkbox.set_state(False)
+                    update_token_count()
                 elif key == 't':
                     for checkbox in checkboxes:
                         checkbox.set_state(not checkbox.get_state())
+                    update_token_count()
                 elif key in ('?', 'h'):
                     show_help_overlay()
                 else:
@@ -137,12 +158,11 @@ def main():
             urwid.connect_signal(checkbox, 'postchange', update_token_count)
 
         token_count = urwid.Text("")
+        update_token_count()
 
         listwalker = urwid.SimpleFocusListWalker(checkboxes)
         listbox = urwid.ListBox(listwalker)
         frame = urwid.Frame(listbox, footer=token_count)
-
-        update_token_count()
 
         loop = urwid.MainLoop(frame, unhandled_input=exit_on_q)
         loop.run()
