@@ -69,7 +69,7 @@ def main():
     parser.add_argument('-n', '--disable-ui', action='store_true', help='Disable UI and concatenate all files')
     parser.add_argument('-o', '--stdout', action='store_true', help='Use stdout instead of the copy/paste buffer')
     parser.add_argument('-l', '--list', action='store_true', help='List available encodings')
-    parser.add_argument('-e', '--encoding', default='cl100k_base', help='Set the encoding')
+    parser.add_argument('-e', '--encoding', default='o200k_base', help='Set the encoding')
     parser.add_argument('files', nargs=argparse.REMAINDER, help='Input files')
 
     args = parser.parse_args()
